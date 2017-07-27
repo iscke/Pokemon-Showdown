@@ -537,7 +537,10 @@ exports.commands = {
 		}
 		return this.sendReply("You are now blocking private messages, except from staff.");
 	},
-	ignorepmshelp: ["/blockpms - Blocks private messages. Unblock them with /unignorepms."],
+	ignorepmshelp: [
+		"/blockpms - Blocks private messages. Unblock them with /unignorepms.",
+		"/blockpms [group] - Blocks private messages from anyone lower than the specified group."
+	],
 
 	'!unignorepms': true,
 	unblockpm: 'unignorepms',
