@@ -374,7 +374,7 @@ class MafiaTracker extends Rooms.RoomGame {
 			if (target !== 'nolynch') this.eliminate(target);
 			return this.night(true);
 		}
-		if (this.getPlurality() !== this.hasPlurality) this.hasPlurality = this.getPlurality();
+		this.hasPlurality = null;
 		player.updateHtmlRoom();
 		return true;
 	}
@@ -395,7 +395,7 @@ class MafiaTracker extends Rooms.RoomGame {
 		}
 		this.sendRoom(`${user.name} has unlynched ${player.lynching}.`, {timestamp: true, user: user});
 		player.lynching = '';
-		if (this.getPlurality() !== this.hasPlurality) this.hasPlurality = this.getPlurality();
+		this.hasPlurality = null;
 		player.updateHtmlRoom();
 		return true;
 	}
@@ -428,6 +428,7 @@ class MafiaTracker extends Rooms.RoomGame {
 	}
 
 	getPlurality() {
+		if (this.hasPlurality) return this.hasPlurality;
 		if (!Object.keys(this.lynches).length) return null;
 		let max = 0;
 		let topLynches = [];
@@ -450,6 +451,7 @@ class MafiaTracker extends Rooms.RoomGame {
 				return (l1.lastLynch > l2.lastLynch ? -1 : 1);
 			}
 		});
+		this.hasPlurality = topLynches[0];
 		return topLynches[0];
 	}
 
@@ -721,7 +723,7 @@ exports.pages = {
 		}
 		if (room.game.phase === "day") {
 			buf += `<h3>Lynches (Hammer: ${room.game.hammerCount}) <button class="button" name="send" value="/join view-mafia-${room.id}"><i class="fa fa-refresh"></i> Refresh</button></h3>`;
-			let plur = room.game.hasPlurality;
+			let plur = room.game.getPlurality();
 			let list = Object.keys(room.game.players).concat(['nolynch']);
 			for (let key of list) {
 				if (room.game.lynches[key]) {
