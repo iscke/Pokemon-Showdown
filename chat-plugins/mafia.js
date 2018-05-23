@@ -1331,7 +1331,7 @@ const pages = {
 			if (!IDEA) return game.sendRoom(`IDEA picking phase but no IDEA object for user: ${user.userid}. Please report this to a mod.`);
 			for (const pick of Object.keys(IDEA.picks)) {
 				buf += `<b>${pick}:</b> `;
-				if (IDEA.picks[pick] === null) {
+				if (!IDEA.picks[pick]) {
 					buf += `<button class="button disabled" style="font-weight:bold; color:#575757; font-weight:bold; background-color:#d3d3d3;">clear</button>`;
 				} else {
 					buf += `<button class="button" name="send" value="/mafia ideapick ${roomid}, ${pick},">clear</button>`;

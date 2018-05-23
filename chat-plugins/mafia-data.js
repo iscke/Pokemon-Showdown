@@ -985,7 +985,7 @@ exports.themes = Object.assign(Object.create(null), {
 exports.IDEAs = Object.assign(Object.create(null), {
 	gi: `greater_idea`,
 	greater_idea: {
-		name: `Greater Idea`,
+		name: `Lots of Greater Idea`,
 		roles: [
 			`Vanilla Townie`,
 			`Vanilla Townie`,
@@ -1131,7 +1131,7 @@ exports.IDEAs = Object.assign(Object.create(null), {
 			`Solo Wild Card`,
 		],
 		picks: [`role`],
-		choices: 2,
+		choices: 5,
 	},
 	gesti: `greatest_idea`,
 	greatest_idea: {
