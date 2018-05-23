@@ -1193,7 +1193,7 @@ class MafiaTracker extends Rooms.RoomGame {
 		if (!player.IDEA) return this.sendRoom(`Trying to pick an IDEA role with no player IDEA object, user: ${user.userid}. Please report this to a mod.`);
 		target = target.map(item => toId(item));
 		if (target.length === 1 && this.IDEA.data.picks.length === 1) target = [this.IDEA.data.picks[0], target[0]];
-		if (target.length !== 2) return `Invalid selection.`;
+		if (target.length !== 2) return user.sendTo(this.room, `|error|Invalid selection.`);
 
 		// selection, role
 		// eg: role, bloodhound
@@ -1202,7 +1202,7 @@ class MafiaTracker extends Rooms.RoomGame {
 
 		if (target[1]) {
 			const roleIndex = player.IDEA.choices.map(choice => toId(choice)).indexOf(target[1]);
-			if (roleIndex === -1) return `${target[1]} is not an available role, perhaps it is already selected?`;
+			if (roleIndex === -1) return user.sendTo(this.room, `|error|${target[1]} is not an available role, perhaps it is already selected?`);
 			target[1] = player.IDEA.choices.splice(roleIndex, 1)[0];
 		} else {
 			target[1] = '';
@@ -1227,7 +1227,7 @@ class MafiaTracker extends Rooms.RoomGame {
 			this.ideaFinalizePicks();
 			return;
 		}
-		return buf;
+		return user.sendTo(this.room, buf);
 	}
 
 	ideaFinalizePicks() {
