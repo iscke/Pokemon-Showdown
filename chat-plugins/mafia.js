@@ -1400,7 +1400,6 @@ const pages = {
 			buf += `</details></p>`;
 		} else {
 			if (!game.closedSetup) {
-				let theme = MafiaData.themes[game.theme];
 				if (game.theme) {
 					buf += `<p><span style="font-weight:bold;">Theme</span>: ${game.theme.name}</p>`;
 					buf += `<p>${game.theme.desc}</p>`;
