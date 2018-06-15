@@ -258,7 +258,7 @@ class MafiaTracker extends Rooms.RoomGame {
 		this.allowRenames = false;
 		this.started = false;
 		this.ended = false;
-		this.theme = '';
+		this.theme = null;
 
 		this.hostid = host.userid;
 		this.host = Chat.escapeHTML(host.name);
@@ -372,7 +372,9 @@ class MafiaTracker extends Rooms.RoomGame {
 			/** @type {string} */
 			let themeRoles = theme[this.playerCount].slice();
 			roles = themeRoles.split(',').map(x => x.trim());
-			this.theme = toId(theme.name);
+			this.theme = theme;
+		} else {
+			this.theme = null;
 		}
 		if (roles.length < this.playerCount) {
 			return user.sendTo(this.room, `|error|You have not provided enough roles for the players.`);
@@ -1399,9 +1401,9 @@ const pages = {
 		} else {
 			if (!game.closedSetup) {
 				let theme = MafiaData.themes[game.theme];
-				if (theme) {
-					buf += `<p><span style="font-weight:bold;">Theme</span>: ${theme.name}</p>`;
-					buf += `<p>${theme.desc}</p>`;
+				if (game.theme) {
+					buf += `<p><span style="font-weight:bold;">Theme</span>: ${game.theme.name}</p>`;
+					buf += `<p>${game.theme.desc}</p>`;
 				}
 				if (game.noReveal) {
 					buf += `<p><span style="font-weight:bold;">Original Rolelist</span>: ${game.originalRoleString}</p>`;
