@@ -4,6 +4,8 @@ type ChatFilter = import('./chat').ChatFilter
 type NameFilter = import('./chat').NameFilter
 type LoginFilter = import('./chat').LoginFilter
 
+type RoomID = '' | string & ({__isRoomID: true} | {__isID: true});
+
 declare let Config: {[k: string]: any};
 
 declare let Monitor: typeof import('./monitor');

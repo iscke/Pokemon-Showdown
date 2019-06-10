@@ -870,7 +870,7 @@ let commands = {
 			const staffHint = staffContexts[target] || '';
 			let helpRoom = /** @type {ChatRoom?} */ (Rooms(`help-${user.userid}`));
 			if (!helpRoom) {
-				helpRoom = Rooms.createChatRoom(`help-${user.userid}`, `[H] ${user.name}`, {
+				helpRoom = Rooms.createChatRoom(/** @type {RoomID} */ (`help-${user.userid}`), `[H] ${user.name}`, {
 					isPersonal: true,
 					isHelp: 'open',
 					isPrivate: 'hidden',

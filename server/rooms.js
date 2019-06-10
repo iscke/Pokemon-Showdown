@@ -39,7 +39,7 @@ const Roomlogs = require('./roomlogs');
  */
 class BasicRoom {
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 * @param {string} [title]
 	 */
 	constructor(roomid, title) {
@@ -409,7 +409,7 @@ class BasicRoom {
 
 class GlobalRoom extends BasicRoom {
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 */
 	constructor(roomid) {
 		if (roomid !== 'global') throw new Error(`The global room's room ID must be 'global'`);
@@ -478,7 +478,7 @@ class GlobalRoom extends BasicRoom {
 			if (room.autojoin) this.autojoinList.push(id);
 			if (room.staffAutojoin) this.staffAutojoinList.push(id);
 		}
-		Rooms.lobby = /** @type {ChatRoom} */ (Rooms.rooms.get('lobby'));
+		Rooms.lobby = /** @type {ChatRoom} */ (Rooms.rooms.get(/** @type {RoomID} */ ('lobby')));
 
 		// init battle room logging
 		if (Config.logladderip) {
@@ -733,9 +733,10 @@ class GlobalRoom extends BasicRoom {
 		//console.log('BATTLE START BETWEEN: ' + p1.userid + ' ' + p2.userid);
 		let roomPrefix = `battle-${toID(Dex.getFormat(format).name)}-`;
 		let battleNum = this.lastBattle;
+		/** @type {RoomID} */
 		let roomid;
 		do {
-			roomid = `${roomPrefix}${++battleNum}`;
+			roomid = /** @type {RoomID} */ (`${roomPrefix}${++battleNum}`);
 		} while (Rooms.rooms.has(roomid));
 
 		this.lastBattle = battleNum;
@@ -790,10 +791,10 @@ class GlobalRoom extends BasicRoom {
 	 * @param {string} id
 	 */
 	delistChatRoom(id) {
-		id = toID(id);
-		if (!Rooms.rooms.has(id)) return false; // room doesn't exist
+		const roomID = toID(id);
+		if (!Rooms.rooms.has(roomID)) return false; // room doesn't exist
 		for (let i = this.chatRooms.length - 1; i >= 0; i--) {
-			if (id === this.chatRooms[i].id) {
+			if (roomID === this.chatRooms[i].id) {
 				this.chatRooms.splice(i, 1);
 				break;
 			}
@@ -1024,7 +1025,7 @@ class GlobalRoom extends BasicRoom {
 
 class BasicChatRoom extends BasicRoom {
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 * @param {string} [title]
 	 * @param {AnyObject} [options]
 	 */
@@ -1429,7 +1430,7 @@ class ChatRoom extends BasicChatRoom {
 
 class GameRoom extends BasicChatRoom {
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 * @param {string} [title]
 	 * @param {AnyObject} [options]
 	 */
@@ -1570,7 +1571,7 @@ let Rooms = Object.assign(getRoom, {
 	 * The main roomid:Room table. Please do not hold a reference to a
 	 * room long-term; just store the roomid and grab it from here (with
 	 * the Rooms(roomid) accessor) when necessary.
-	 * @type {Map<string, Room>}
+	 * @type {Map<RoomID, Room>}
 	 */
 	rooms: new Map(),
 	/** @type {Map<string, string>} */
@@ -1586,7 +1587,7 @@ let Rooms = Object.assign(getRoom, {
 	},
 
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 * @param {string} title
 	 * @param {AnyObject} options
 	 */
@@ -1598,7 +1599,7 @@ let Rooms = Object.assign(getRoom, {
 		return room;
 	},
 	/**
-	 * @param {string} roomid
+	 * @param {RoomID} roomid
 	 * @param {string} title
 	 * @param {AnyObject} options
 	 */
