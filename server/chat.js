@@ -1974,7 +1974,7 @@ Chat.monitors = {};
 Chat.namefilterwhitelist = new Map();
 /**
  * Inappropriate userid : forcerenaming staff member's userid
- * @type {Map<string, string>}
+ * @type {Map<ID, ID>}
  */
 Chat.forceRenames = new Map();
 

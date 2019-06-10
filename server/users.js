@@ -50,7 +50,7 @@ const FS = require(/** @type {any} */('../.lib-dist/fs')).FS;
 
 /**
  * @param {User} user
- * @param {string} newUserid
+ * @param {ID} newUserid
  */
 function move(user, newUserid) {
 	if (user.userid === newUserid) return true;
@@ -450,6 +450,7 @@ class User extends Chat.MessageContext {
 		this.name = "";
 		this.named = false;
 		this.registered = false;
+		/** @type {ID} */
 		this.userid = '';
 		this.group = Config.groupsranking[0];
 
