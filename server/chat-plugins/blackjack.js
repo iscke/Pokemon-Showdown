@@ -651,7 +651,7 @@ exports.commands = {
 		"/blackjack enable - Allows games of blackjack to be made in the room. Requires: # & ~",
 	],
 };
-exports.roomSettings = function (room, user, connection) {
+const roomSettings = function (room, user, connection) {
 	let buf;
 	if (!user.can('editroom', null, this.room)) {
 		buf = this.button(room.blackjackDisabled ? 'off' : 'Blackjack enabled', true);

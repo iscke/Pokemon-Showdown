@@ -29,18 +29,25 @@ export const commands: ChatCommands = {
 			this.parse(`/${target}`);
 			uhtml = 'uhtmlchange';
 		}
-		// send the settings list
-		function button(setting: string, disable: boolean, command = ' ') {
-			if (disable) {
-				return Chat.html`<button class="button disabled" style="font-weight:bold; color:#575757; font-weight:bold; background-color:#d3d3d3;">${setting}</button> `;
-			}
-			return Chat.html`<button class="button" name="send" value="/roomsetting ${command}">${setting}</button> `;
-		}
 
+		// send the settings list
 		let output = Chat.html`<div class="infobox">Room Settings for ${room.title}<br />`;
 		for (const handler of Chat.roomSettings) {
-			output += handler.call({button}, room, user, connection);
+			const {label, buttons} = handler(room, user, connection);
+
+			output += `<strong>${label}:</strong> <br />`;
+
+			for (const [buttonLabel, command] of buttons) {
+				if (command === true) {
+					// disabled
+					output += Chat.html`<button class="button disabled" style="font-weight:bold; color:#575757; font-weight:bold; background-color:#d3d3d3;">${buttonLabel}</button> `;
+				} else {
+					output += Chat.html`<button class="button" name="send" value="/roomsetting ${command}">${buttonLabel}</button> `;
+				}
+			}
+			output += `<br />`;
 		}
+
 		output += '</div>';
 		user.sendTo(room, `|${uhtml}|roomsettings|${output}`);
 	},
@@ -1204,131 +1211,168 @@ export const commands: ChatCommands = {
 };
 
 export const roomSettings: SettingsHandler[] = [
-	function language(room, user) {
-		let buf;
+	// language
+	(room, user) => {
+		const label = "Language";
 		if (!user.can('editroom', null, room)) {
-			buf = this.button(room.language ? Chat.languages.get(room.language)! : 'English', true);
-		} else {
-			const languageOutput = [];
-			languageOutput.push(this.button(`English`, !room.language, 'roomlanguage english'));
-			for (const [id, text] of Chat.languages) {
-				languageOutput.push(this.button(text, room.language === id, `roomlanguage ${id}`));
-			}
-			buf = languageOutput.join(' ');
+			return {
+				label,
+				buttons: [[room.language ? Chat.languages.get(room.language)! : 'English', true]],
+			};
 		}
-		return `<strong>Language:</strong> <br />${buf}<br />`;
+		const buttons: [string, string | true][] = [];
+		buttons.push([`English`, !room.language || 'roomlanguage english']);
+		for (const [id, text] of Chat.languages) {
+			if (id !== 'english') buttons.push([text, room.language === id || `roomlanguage ${id}`]);
+		}
+		return {label, buttons};
 	},
-	function modchat(room, user) {
-		let buf;
-
+	// modchat
+	(room, user) => {
+		const label = "Modchat";
 		if (!user.can('modchat', null, room)) {
-			buf = this.button(room.modchat ? room.modchat : 'off', true);
-		} else {
-			const modchatOutput = [];
-			for (const rank of RANKS) {
-				if (rank === Config.groupsranking[0] && !room.modchat) {
-					modchatOutput.push(this.button('off', true));
-				} else if (rank === Config.groupsranking[0]) {
-					modchatOutput.push(this.button('off', false, 'modchat off'));
-				} else if (rank === room.modchat) {
-					modchatOutput.push(this.button(rank, true));
-				} else if (rank) {
-					const rankIndex = RANKS.indexOf(rank);
-					const roomAuth = (room.auth && room.auth[user.id] ? room.auth[user.id] : false);
-					const roomAuthIndex = (roomAuth ? RANKS.indexOf(roomAuth) : false);
-					if (rankIndex > 1 && !user.can('modchatall', null, room)) continue;
-					if (roomAuth && !user.can('bypassall')) {
-						if (rankIndex > roomAuthIndex) continue;
-					}
-					modchatOutput.push(this.button(rank, false, `modchat ${rank}`));
-				}
-			}
-			// Since autoconfirmed isn't technically a Config rank...
-			const acStatus = room.modchat === 'autoconfirmed';
-			modchatOutput.splice(1, 0, this.button('AC', acStatus, 'modchat autoconfirmed'));
-			buf = modchatOutput.join(' ');
+			return {
+				label,
+				buttons: [[room.modchat ? room.modchat : 'off', true]],
+			};
 		}
-		return `<strong>Modchat:</strong> <br />${buf}<br />`;
+		const buttons: [string, string | true][] = [];
+		for (const rank of RANKS) {
+			if (rank === Config.groupsranking[0] && !room.modchat) {
+				buttons.push(['off', true]);
+			} else if (rank === Config.groupsranking[0]) {
+				buttons.push(['off', 'modchat off']);
+			} else if (rank === room.modchat) {
+				buttons.push([rank, true]);
+			} else if (rank) {
+				const rankIndex = RANKS.indexOf(rank);
+				const roomAuth = (room.auth && room.auth[user.id] ? room.auth[user.id] : false);
+				const roomAuthIndex = (roomAuth ? RANKS.indexOf(roomAuth) : false);
+				if (rankIndex > 1 && !user.can('modchatall', null, room)) continue;
+				if (roomAuth && !user.can('bypassall')) {
+					if (rankIndex > roomAuthIndex) continue;
+				}
+				buttons.push([rank, `modchat ${rank}`]);
+			}
+		}
+		// Since autoconfirmed isn't technically a Config rank...
+		const acStatus = room.modchat === 'autoconfirmed';
+		buttons.splice(1, 0, ['AC', acStatus || 'modchat autoconfirmed']);
+		return {label, buttons};
 	},
-	function modjoin(room, user, connection) {
-		let buf;
+	// modjoin
+	(room, user) => {
+		const label = "Modjoin";
 		if (!user.can('makeroom') && !room.isPersonal ||
 			!user.can('editroom', null, room)) {
-			buf = this.button(room.modjoin ? '' + room.modjoin : 'off', true);
-		} else {
-			const modjoinOutput = [];
-			for (const rank of RANKS) {
-				if (rank === Config.groupsranking[0] && !room.modjoin) {
-					modjoinOutput.push(this.button('off', true));
-				} else if (rank === Config.groupsranking[0]) {
-					modjoinOutput.push(this.button('off', false, 'modjoin off'));
-				} else if (rank === room.modjoin) {
-					modjoinOutput.push(this.button(rank, true));
-				} else if (rank) {
-					// groupchat hosts can set modjoin, but only to +
-					if (room.isPersonal && !user.can('makeroom') && rank !== '+') continue;
+			return {
+				label,
+				buttons: [[room.modjoin ? '' + room.modjoin : 'off', true]],
+			};
+		}
+		const buttons: [string, string | true][] = [];
+		for (const rank of RANKS) {
+			if (rank === Config.groupsranking[0] && !room.modjoin) {
+				buttons.push(['off', true]);
+			} else if (rank === Config.groupsranking[0]) {
+				buttons.push(['off', 'modjoin off']);
+			} else if (rank === room.modjoin) {
+				buttons.push([rank, true]);
+			} else if (rank) {
+				// groupchat hosts can set modjoin, but only to +
+				if (room.isPersonal && !user.can('makeroom') && rank !== '+') continue;
 
-					modjoinOutput.push(this.button(rank, false, `modjoin ${rank}`));
-				}
+				buttons.push([rank, `modjoin ${rank}`]);
 			}
-			buf = modjoinOutput.join(' ');
 		}
-		return `<strong>Modjoin:</strong> <br />${buf}<br />`;
+		return {label, buttons};
 	},
-	function stretching(room, user) {
-		let buf;
+	// stretching
+	(room, user) => {
+		const label = "Stretch filter";
 		if (!user.can('editroom', null, room)) {
-			buf = this.button(room.filterStretching ? 'filter stretching' : 'off', true);
-		} else if (room.filterStretching) {
-			buf = `${this.button('off', false, 'stretchfilter off')} ${this.button('filter stretching', true)}`;
-		} else {
-			buf = `${this.button('off', true)} ${this.button('filter stretching', false, 'stretchfilter on')}`;
+			return {
+				label,
+				buttons: [[room.filterStretching ? 'filter stretching' : 'off', true]],
+			};
 		}
-		return `<strong>Stretch filter:</strong> <br />${buf}<br />`;
+		if (room.filterStretching) {
+			return {
+				label,
+				buttons: [['off', 'stretchfilter off'], ['filter stretching', true]],
+			};
+		} else {
+			return {
+				label,
+				buttons: [['off', true], ['filter stretching', 'stretchfilter on']],
+			};
+		}
 	},
-	function capitals(room, user) {
-		let buf;
+	// caps
+	(room, user) => {
+		const label = "Caps filter";
 		if (!user.can('editroom', null, room)) {
-			buf = this.button(room.filterCaps ? 'filter capitals' : 'off', true);
-		} else if (room.filterCaps) {
-			buf = `${this.button('off', false, 'capsfilter off')} ${this.button('filter capitals', true)}`;
-		} else {
-			buf = `${this.button('off', true)} ${this.button('filter capitals', false, 'capsfilter on')}`;
+			return {
+				label,
+				buttons: [[room.filterCaps ? 'filter capitals' : 'off', true]],
+			};
 		}
-		return `<strong>Caps filter:</strong> <br />${buf}<br />`;
+		if (room.filterCaps) {
+			return {
+				label,
+				buttons: [['off', 'capsfilter off'], ['filter capitals', true]],
+			};
+		} else {
+			return {
+				label,
+				buttons: [['off', true], ['filter capitals', 'capsfilter on']],
+			};
+		}
 	},
-	function emojis(room, user) {
-		let buf;
+	// emoji
+	(room, user) => {
+		const label = "Emoji filter";
 		if (!user.can('editroom', null, room)) {
-			buf = this.button(room.filterEmojis ? 'filter emojis' : 'off', true);
-		} else if (room.filterEmojis) {
-			buf = `${this.button('off', false, 'emojifilter off')} ${this.button('filter emojis', true)}`;
-		} else {
-			buf = `${this.button('off', true)} ${this.button('filter emojis', false, 'emojifilter on')}`;
+			return {
+				label,
+				buttons: [[room.filterEmojis ? 'filter emojis' : 'off', true]],
+			};
 		}
-		return `<strong>Emoji filter:</strong> <br />${buf}<br />`;
+		if (room.filterEmojis) {
+			return {
+				label,
+				buttons: [['off', 'emojifilter off'], ['filter emojis', true]],
+			};
+		} else {
+			return {
+				label,
+				buttons: [['off', true], ['filter emojis', 'emojifilter on']],
+			};
+		}
 	},
-	function slowchat(room, user) {
-		let buf;
+	// slowchat
+	(room, user) => {
+		const label = "Slowchat";
 		if (!user.can('editroom', null, room) ||
 			(!user.can('bypassall') && room.userCount < SLOWCHAT_USER_REQUIREMENT)) {
-			buf = this.button(room.slowchat ? '' + room.slowchat : 'off', true);
-		} else {
-			const slowchatOutput = [];
-			for (const i of [5, 10, 20, 30, 60]) {
-				if (room.slowchat === i) {
-					slowchatOutput.push(this.button(`${i}s`, true));
-				} else {
-					slowchatOutput.push(this.button(`${i}s`, false, `slowchat ${i}`));
-				}
-			}
-			if (!room.slowchat) {
-				slowchatOutput.unshift(this.button('off', true));
-			} else {
-				slowchatOutput.unshift(this.button('off', false, 'slowchat false'));
-			}
-			buf = slowchatOutput.join(' ');
+			return {
+				label,
+				buttons: [[room.slowchat ? '' + room.slowchat : 'off', true]],
+			};
 		}
-		return `<strong>Slowchat:</strong> <br />${buf}<br />`;
+		const buttons: [string, string | true][] = [];
+		for (const i of [5, 10, 20, 30, 60]) {
+			if (room.slowchat === i) {
+				buttons.push([`${i}s`, true]);
+			} else {
+				buttons.push([`${i}s`, `slowchat ${i}`]);
+			}
+		}
+		if (!room.slowchat) {
+			buttons.unshift(['off', true]);
+		} else {
+			buttons.unshift(['off', 'slowchat false']);
+		}
+		return {label, buttons};
 	},
 ];

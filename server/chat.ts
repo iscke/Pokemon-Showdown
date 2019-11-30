@@ -45,11 +45,14 @@ export interface ChatCommands {
 }
 
 export type SettingsHandler = (
-	this: {button: (setting: string, disable: boolean, command?: string) => string},
 	room: BasicChatRoom,
 	user: User,
 	connection: Connection
-) => string;
+) => {
+	label: string;
+	// [label, command]
+	buttons: [string, string | true][]
+};
 
 /**
  * Chat filters can choose to:

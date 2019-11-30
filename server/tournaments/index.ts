@@ -1783,5 +1783,5 @@ export const Tournaments = {
 	createTournament,
 	tourCommands,
 	commands,
-	roomSettings,
+//	roomSettings,
 };

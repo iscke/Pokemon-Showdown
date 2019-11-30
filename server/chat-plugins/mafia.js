@@ -3315,7 +3315,7 @@ const roomSettings = function (room, user, connection) {
 module.exports = {
 	commands,
 	pages,
-	roomSettings,
+//	roomSettings,
 };
 
 process.nextTick(() => {

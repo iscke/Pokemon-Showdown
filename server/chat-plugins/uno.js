@@ -989,5 +989,5 @@ const roomSettings = function (room, user, connection) {
 
 module.exports = {
 	commands,
-	roomSettings,
+//	roomSettings,
 };
