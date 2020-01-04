@@ -1,5 +1,46 @@
 'use strict';
 
+interface MafiaData {
+	alignments: {[k: string]: MafiaDataAlignment};
+	roles: {[k: string]: MafiaDataRole};
+	themes: {[k: string]: MafiaDataTheme};
+	IDEAs: {[k: string]: MafiaDataIDEA};
+	terms: {[k: string]: MafiaDataTerm};
+	aliases: {[k: string]: string};
+}
+interface MafiaDataAlignment {
+	name: string;
+	plural: string;
+	id: string;
+	color?: string;
+	buttonColor?: string;
+	memo: string[];
+	image?: string;
+}
+interface MafiaDataRole {
+	name: string;
+	id: string;
+	memo: string[];
+	alignment?: string;
+	image?: string;
+}
+interface MafiaDataTheme {
+	name: string;
+	desc: string;
+	// roles
+	[players: number]: string;
+}
+interface MafiaDataIDEA {
+	name: string;
+	roles: string[];
+	picks: string[];
+	choices: number;
+}
+interface MafiaDataTerm {
+	name: string;
+	memo: string[];
+}
+
 interface MafiaLogTable {
 	[date: string]: {[userid: string]: number};
 }
@@ -32,7 +73,7 @@ interface MafiaLynch {
 interface MafiaIDEAData {
 	name: string;
 	// do we trust the roles to be all proper
-	untrusted: true | null;
+	untrusted?: true;
 	roles: string[];
 	// eg, GestI has 3 choices
 	choices: number;
@@ -53,17 +94,14 @@ interface MafiaIDEAPlayerData {
 	picks: {[choice: string]: string | null};
 }
 
-type MafiaTheme = import('./mafia-data').MafiaTheme;
-
 import {FS} from '../../lib/fs';
 
+const DATA_FILE = 'config/chat-plugins/mafia-data.json';
 const LOGS_FILE = 'config/chat-plugins/mafia-logs.json';
 const BANS_FILE = 'config/chat-plugins/mafia-bans.json';
 
-import MafiaData = require('../../server/chat-plugins/mafia-data.js');
-
+let MafiaData: MafiaData;
 let logs: MafiaLog = {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
-
 let hostBans: MafiaHostBans = Object.create(null);
 
 const hostQueue: ID[] = [];
@@ -74,7 +112,6 @@ function readFile(path: string) {
 	try {
 		const json = FS(path).readIfExistsSync();
 		if (!json) {
-			writeFile(path, {});
 			return false;
 		}
 		return Object.assign(Object.create(null), JSON.parse(json));
@@ -88,9 +125,17 @@ function writeFile(path: string, data: AnyObject) {
 	));
 }
 
-// Load logs
-logs = readFile(LOGS_FILE);
-if (!logs) logs = {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
+// Load data
+MafiaData = readFile(DATA_FILE) || {alignments: {}, roles: {}, themes: {}, IDEAs: {}, terms: {}, aliases: {}};
+
+/** TESTING ZONE */
+import md = require('../../server/chat-plugins/mafia-data.js');
+import { globalAgent } from 'https';
+MafiaData.roles = Object.assign(md.modifiers, md.roles);
+MafiaData.alignments = md.alignments;
+/** TESTING ZONE END */
+
+logs = readFile(LOGS_FILE) || {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
 
 const tables: MafiaLogSection[] = ['leaderboard', 'mvps', 'hosts', 'plays', 'leavers'];
 for (const section of tables) {
@@ -122,8 +167,7 @@ for (const section of tables) {
 writeFile(LOGS_FILE, logs);
 
 // Load bans
-hostBans = readFile(BANS_FILE);
-if (!hostBans) hostBans = Object.create(null);
+hostBans = readFile(BANS_FILE) || Object.create(null);
 
 for (const userid in hostBans) {
 	if (hostBans[userid] < Date.now()) {
@@ -190,7 +234,7 @@ class MafiaPlayer extends Rooms.RoomGamePlayer {
 
 class MafiaTracker extends Rooms.RoomGame {
 	started: boolean;
-	theme: MafiaTheme | null;
+	theme: MafiaDataTheme | null;
 	hostid: ID;
 	host: string;
 	cohosts: ID[];
@@ -319,28 +363,20 @@ class MafiaTracker extends Rooms.RoomGame {
 		let roles = roleString.split(',').map(x => x.trim());
 		if (roles.length === 1) {
 			// Attempt to set roles from a theme
-			const themeName = toID(roles[0]);
+			let themeName: string = toID(roles[0]);
+			if (themeName in MafiaData.aliases) themeName = MafiaData.aliases[themeName];
+
 			if (themeName in MafiaData.themes) {
 				// setting a proper theme
-				let theme = MafiaData.themes[themeName];
-				if (typeof theme === 'string') theme = MafiaData.themes[theme];
-				if (typeof theme === 'object') {
-					if (!theme[this.playerCount]) return user.sendTo(this.room, `|error|The theme "${theme.name}" does not have a role list for ${this.playerCount} players.`);
-					const themeRoles: string = theme[this.playerCount].slice();
-					roles = themeRoles.split(',').map(x => x.trim());
-					this.theme = theme;
-				} else {
-					return this.sendRoom(`Invalid alias in mafia-data themes: ${roles[0]}`);
-				}
+				const theme = MafiaData.themes[themeName];
+				if (!theme[this.playerCount]) return user.sendTo(this.room, `|error|The theme "${theme.name}" does not have a role list for ${this.playerCount} players.`);
+				const themeRoles: string = theme[this.playerCount].slice();
+				roles = themeRoles.split(',').map(x => x.trim());
+				this.theme = theme;
 			} else if (themeName in MafiaData.IDEAs) {
 				// setting an IDEA's rolelist as a theme, a la Great Idea
-				let IDEA = MafiaData.IDEAs[themeName];
-				if (typeof IDEA === 'string') IDEA = MafiaData.IDEAs[IDEA];
-				if (typeof IDEA === 'object') {
-					roles = IDEA.roles.slice();
-				} else {
-					return this.sendRoom(`Invalid alias in mafia-data IDEAs: ${roles[0]}`);
-				}
+				const IDEA = MafiaData.IDEAs[themeName];
+				roles = IDEA.roles.slice();
 				this.theme = null;
 			} else {
 				return user.sendTo(this.room, `|error|${roles[0]} is not a valid theme or IDEA.`);
@@ -365,7 +401,7 @@ class MafiaTracker extends Rooms.RoomGame {
 					memo: [`To learn more about your role, PM the host (${this.host}).`],
 				};
 			});
-			this.originalRoles.sort((a, b) => a.alignment.localeCompare(b.alignment) || a.name.localeCompare(b.name));
+			this.originalRoles.sort((a, b) => a.name.localeCompare(b.name));
 			this.roles = this.originalRoles.slice();
 			this.originalRoleString = this.originalRoles.slice().map(r => `<span style="font-weight:bold;color:${MafiaData.alignments[r.alignment].color || '#FFF'}">${r.safeName}</span>`).join(', ');
 			this.roleString = this.originalRoleString;
@@ -373,7 +409,7 @@ class MafiaTracker extends Rooms.RoomGame {
 		}
 
 		const newRoles: MafiaRole[] = [];
-		let problems: string[] = [];
+		const problems: string[] = [];
 		const alignments: string[] = [];
 		const cache: {[k: string]: MafiaRole} = Object.create(null);
 		for (const roleName of roles) {
@@ -382,7 +418,10 @@ class MafiaTracker extends Rooms.RoomGame {
 				newRoles.push(Object.assign(Object.create(null), cache[roleId]));
 			} else {
 				const role = MafiaTracker.parseRole(roleName);
-				if (role.problems.length) problems = problems.concat(role.problems);
+				if (role.problems) {
+					problems.push(...role.problems);
+					continue;
+				}
 				if (alignments.indexOf(role.role.alignment) === -1) alignments.push(role.role.alignment);
 				cache[roleId] = role.role;
 				newRoles.push(role.role);
@@ -409,107 +448,68 @@ class MafiaTracker extends Rooms.RoomGame {
 		if (reset) this.distributeRoles();
 	}
 
-	/**
-	 * Parses a single role into an object
-	 */
 	static parseRole(roleString: string) {
-		const name = roleString.split(' ').map(p => toID(p) === 'solo' ? '' : p).join(' ');
 		const role = {
-			name,
-			safeName: Chat.escapeHTML(name),
-			id: toID(name),
+			name: roleString,
+			safeName: Chat.escapeHTML(roleString),
+			id: toID(roleString),
 			image: '',
 			memo: ['During the Day, you may vote for whomever you want lynched.'],
 			alignment: '',
 		};
-		roleString = roleString.replace(/\s*\(.*?\)\s*/g, ' ');
-		const target = roleString.toLowerCase().replace(/[^\w\d\s]/g, '').split(' ');
-		const problems = [];
-		for (let key in MafiaData.roles) {
-			if (key.includes('_')) {
-				const roleKey = target.slice().map(toID).join('_');
-				if (roleKey.includes(key)) {
-					const originalKey = key;
-					if (typeof MafiaData.roles[key] === 'string') key = MafiaData.roles[key];
-					if (!role.image && MafiaData.roles[key].image) role.image = MafiaData.roles[key].image;
-					if (MafiaData.roles[key].alignment) {
-						if (role.alignment && role.alignment !== MafiaData.roles[key].alignment) {
-							// A role cant have multiple alignments
-							problems.push(`The role "${role.name}" has multiple possible alignments (${MafiaData.roles[key].alignment} or ${role.alignment})`);
-							break;
-						}
-						role.alignment = MafiaData.roles[key].alignment;
+		const problems: string[] = [];
+
+		// if a role has a modifier with an alignment and a proper alignment,
+		// the proper alignment overrides the modifier's alignment
+		let modAlignment = '';
+		const roleWords = roleString.split(' ').map(toID);
+		outer: while (roleWords.length) {
+			const currentWord = roleWords.slice();
+
+			while (currentWord.length) {
+				let currentSearch = currentWord.join(' ');
+				if (currentSearch in MafiaData.aliases) currentSearch = MafiaData.aliases[currentSearch];
+
+				if (currentSearch in MafiaData.roles) {
+					// we found something with our current search, remove it from the main role and restart
+					const mod = MafiaData.roles[currentSearch];
+
+					if (mod.memo) role.memo.push(...mod.memo);
+					if (mod.alignment && !modAlignment) modAlignment = mod.alignment;
+					if (mod.image && !role.image) role.image = mod.image;
+
+					roleWords.splice(0, currentWord.length);
+					continue outer;
+				} else if (currentSearch in MafiaData.alignments) {
+					if (role.alignment && role.alignment !== currentSearch) {
+						problems.push(`The role ${roleString} has multiple possible alignments (${role.alignment} and ${currentSearch})`);
 					}
-					if (MafiaData.roles[key].memo) role.memo = role.memo.concat(MafiaData.roles[key].memo);
-					const index = roleKey.split('_').indexOf(originalKey.split('_')[0]);
-					target.splice(index, originalKey.split('_').length);
+					role.alignment = currentSearch;
+
+					roleWords.splice(0, currentWord.length);
+					continue outer;
 				}
-			} else if (target.includes(key)) {
-				const index = target.indexOf(key);
-				if (typeof MafiaData.roles[key] === 'string') key = MafiaData.roles[key];
-				if (!role.image && MafiaData.roles[key].image) role.image = MafiaData.roles[key].image;
-				if (MafiaData.roles[key].memo) role.memo = role.memo.concat(MafiaData.roles[key].memo);
-				target.splice(index, 1);
+
+				// we didnt find something, take the last word off our current search and continue
+				currentWord.pop();
 			}
+			// no matches, take the first word off and continue
+			roleWords.shift();
 		}
-		// Add modifiers
-		for (let key in MafiaData.modifiers) {
-			if (key.includes('_')) {
-				const roleKey = target.slice().map(toID).join('_');
-				if (roleKey.includes(key)) {
-					if (typeof MafiaData.modifiers[key] === 'string') key = MafiaData.modifiers[key];
-					if (!role.image && MafiaData.modifiers[key].image) role.image = MafiaData.modifiers[key].image;
-					if (MafiaData.modifiers[key].memo) role.memo = role.memo.concat(MafiaData.modifiers[key].memo);
-					const index = roleKey.split('_').indexOf(key.split('_')[0]);
-					target.splice(index, key.split('_').length);
-				}
-			} else if (key === 'xshot') {
-				// Special case for X-Shot modifier
-				for (let [i, xModifier] of target.entries()) {
-					if (toID(xModifier).endsWith('shot')) {
-						const num = parseInt(toID(xModifier).substring(0, toID(xModifier).length - 4));
-						if (isNaN(num)) continue;
-						let memo: string[] = MafiaData.modifiers.xshot.memo.slice();
-						memo = memo.map(m => m.replace(/X/g, num.toString()));
-						role.memo = role.memo.concat(memo);
-						target.splice(i, 1);
-						i--;
-					}
-				}
-			} else if (target.includes(key)) {
-				const index = target.indexOf(key);
-				if (typeof MafiaData.modifiers[key] === 'string') key = MafiaData.modifiers[key];
-				if (!role.image && MafiaData.modifiers[key].image) role.image = MafiaData.modifiers[key].image;
-				if (MafiaData.modifiers[key].memo) role.memo = role.memo.concat(MafiaData.modifiers[key].memo);
-				target.splice(index, 1);
-			}
-		}
-		// Determine the role's alignment
-		for (let [j, targetId] of target.entries()) {
-			let id = toID(targetId);
-			if (MafiaData.alignments[id]) {
-				if (typeof MafiaData.alignments[id] === 'string') id = MafiaData.alignments[id];
-				if (role.alignment && role.alignment !== MafiaData.alignments[id].id) {
-					// A role cant have multiple alignments
-					problems.push(`The role "${role.name}" has multiple possible alignments (${MafiaData.alignments[id].id} or ${role.alignment})`);
-					break;
-				}
-				role.alignment = MafiaData.alignments[id].id;
-				role.memo = role.memo.concat(MafiaData.alignments[id].memo);
-				if (!role.image && MafiaData.alignments[id].image) role.image = MafiaData.alignments[id].image;
-				target.splice(j, 1);
-				j--;
-			}
-		}
+
+		role.alignment = role.alignment || modAlignment;
 		if (!role.alignment) {
 			// Default to town
 			role.alignment = 'town';
-			role.memo = role.memo.concat(MafiaData.alignments.town.memo);
 		}
-		// Handle anything that is unknown
-		if (target.length) {
-			role.memo.push(`To learn more about your role, PM the host.`);
+		if (problems.length) {
+			// multiple possible alignment, default to solo
+			role.alignment = 'solo';
+			role.memo.push(`Your role has multiple conflicting alignments, ask the host for details.`);
+		} else {
+			role.memo.push(...MafiaData.alignments[role.alignment].memo);
 		}
+
 		return {role, problems};
 	}
 
@@ -1254,8 +1254,10 @@ class MafiaTracker extends Rooms.RoomGame {
 				const pick = player.IDEA.picks[this.IDEA.data.picks[0]];
 				if (!pick) throw new Error('Pick not found when parsing role selected in IDEA module.');
 				const parsedRole = MafiaTracker.parseRole(pick);
+				if (parsedRole.problems) {
+					this.sendRoom(`Problems found when parsing IDEA role ${player.IDEA.picks[this.IDEA.data.picks[0]]}. Please report this to a mod.`);
+				}
 				player.role = parsedRole.role;
-				if (parsedRole.problems.length && !this.IDEA.data.untrusted) this.sendRoom(`Problems found when parsing IDEA role ${player.IDEA.picks[this.IDEA.data.picks[0]]}. Please report this to a mod.`);
 			} else {
 				roleName = role.join('; ');
 				player.role = {
@@ -1271,7 +1273,9 @@ class MafiaTracker extends Rooms.RoomGame {
 					for (const pick of role) {
 						if (pick.substr(0, 10) === 'alignment:') {
 							const parsedRole = MafiaTracker.parseRole(pick.substr(9));
-							if (parsedRole.problems.length) this.sendRoom(`Problems found when parsing IDEA role ${pick}. Please report this to a mod.`);
+							if (parsedRole.problems) {
+								this.sendRoom(`Problems found when parsing IDEA role ${pick}. Please report this to a mod.`);
+							}
 							player.role.alignment = parsedRole.role.alignment;
 						}
 					}
@@ -1584,9 +1588,9 @@ export const pages: PageTable = {
 			buf += `</p>`;
 			buf += `<p><details><summary class="button" style="display:inline-block"><b>Role details:</b></summary><p>`;
 			for (const role of IDEA.originalChoices) {
-				const roleObject = MafiaTracker.parseRole(role).role;
+				const roleObject = MafiaTracker.parseRole(role);
 				buf += `<details><summary>${role}</summary>`;
-				buf += `<table><tr><td style="text-align:center;"><td style="text-align:left;width:100%"><ul>${roleObject.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
+				buf += `<table><tr><td style="text-align:center;"><td style="text-align:left;width:100%"><ul>${roleObject.role.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
 				buf += `</details>`;
 			}
 			buf += `</p></details></p>`;
@@ -2808,41 +2812,44 @@ export const commands: ChatCommands = {
 
 			if (!target) return this.parse(`/help mafia data`);
 
-			const types: {[k: string]: string}
-				= {alignment: 'alignments', role: 'roles', modifier: 'modifiers', theme: 'themes', term: 'terms'};
-			const id = target.split(' ').map(toID).join('_');
+			type SearchableTypes = Pick<MafiaData, 'alignments' | 'roles' | 'themes' | 'IDEAs' | 'terms'>;
+			const types: (keyof SearchableTypes)[] = ['alignments', 'roles', 'themes', 'IDEAs', 'terms'];
+			let id = target.split(' ').map(toID).join('_');
+			if (id in MafiaData.aliases) id = MafiaData.aliases[id];
+
 			let result = null;
 			let dataType = cmd;
-			if (cmd in types) {
-				const type: 'alignments' | 'roles' | 'modifiers' | 'themes' | 'IDEAs' | 'terms' = types[cmd] as any;
-				const data = MafiaData[type];
-				if (!data) return this.errorReply(`"${type}" is not a valid search area.`); // Should never happen
+			if (types.includes(cmd as keyof SearchableTypes)) {
+				const data = MafiaData[cmd as keyof SearchableTypes];
+				if (!data) return this.errorReply(`"${cmd}" is not a valid search area.`); // Should never happen
 				if (!data[id]) return this.errorReply(`"${target} is not a valid ${cmd}."`);
 				result = data[id];
 				if (typeof result === 'string') result = data[result];
 			} else {
 				// Search all
-				for (const i in types) {
-					const type: 'alignments' | 'roles' | 'modifiers' | 'themes' | 'IDEAs' | 'terms' = types[i] as any;
+				for (const type of types) {
 					const data = MafiaData[type];
 					if (!data) continue; // Should never happen
 					if (!data[id]) continue;
 					result = data[id];
 					if (typeof result === 'string') result = data[result];
-					dataType = i;
+					dataType = type;
 					break;
 				}
 				if (!result) return this.errorReply(`"${target}" is not a valid mafia alignment, role, modifier, or theme.`);
 			}
+			// @ts-ignore
 			let buf = `<h3${result.color ? ' style="color: ' + result.color + '"' : ``}>${result.name}</h3><b>Type</b>: ${dataType}<br/>`;
 			if (dataType === 'theme') {
-				buf += `<b>Description</b>: ${result.desc}<br/><details><summary class="button" style="font-weight: bold; display: inline-block">Setups:</summary>`;
+				buf += `<b>Description</b>: ${(result as MafiaDataTheme).desc}<br/><details><summary class="button" style="font-weight: bold; display: inline-block">Setups:</summary>`;
 				for (const i in result) {
+					const num = parseInt(i);
+					if (isNaN(num)) continue;
 					if (isNaN(parseInt(i))) continue;
 					buf += `${i}: `;
 					const count: {[k: string]: number} = {};
 					const roles = [];
-					for (const role of result[i].split(',').map((x: string) => x.trim())) {
+					for (const role of (result as MafiaDataTheme)[num].split(',').map((x: string) => x.trim())) {
 						count[role] = count[role] ? count[role] + 1 : 1;
 					}
 					for (const role in count) {
@@ -2851,7 +2858,8 @@ export const commands: ChatCommands = {
 					buf += `${roles.join(', ')}<br/>`;
 				}
 			} else {
-				buf += `${result.memo.join('<br/>')}`;
+				// @ts-ignore
+				if (result.memo) buf += `${result.memo.join('<br/>')}`;
 			}
 			return this.sendReplyBox(buf);
 		},
