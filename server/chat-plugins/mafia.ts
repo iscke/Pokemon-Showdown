@@ -11,7 +11,6 @@ interface MafiaData {
 interface MafiaDataAlignment {
 	name: string;
 	plural: string;
-	id: string;
 	color?: string;
 	buttonColor?: string;
 	memo: string[];
@@ -19,7 +18,6 @@ interface MafiaDataAlignment {
 }
 interface MafiaDataRole {
 	name: string;
-	id: string;
 	memo: string[];
 	alignment?: string;
 	image?: string;
@@ -100,6 +98,8 @@ const DATA_FILE = 'config/chat-plugins/mafia-data.json';
 const LOGS_FILE = 'config/chat-plugins/mafia-logs.json';
 const BANS_FILE = 'config/chat-plugins/mafia-bans.json';
 
+const VALID_IMAGES = ['cop', 'dead', 'doctor', 'fool', 'godfather', 'goon', 'hooker', 'mafia', 'mayor', 'villager', 'werewolf'];
+
 let MafiaData: MafiaData;
 let logs: MafiaLog = {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
 let hostBans: MafiaHostBans = Object.create(null);
@@ -129,10 +129,11 @@ function writeFile(path: string, data: AnyObject) {
 MafiaData = readFile(DATA_FILE) || {alignments: {}, roles: {}, themes: {}, IDEAs: {}, terms: {}, aliases: {}};
 
 /** TESTING ZONE */
+/*
 import md = require('../../server/chat-plugins/mafia-data.js');
-import { globalAgent } from 'https';
 MafiaData.roles = Object.assign(md.modifiers, md.roles);
 MafiaData.alignments = md.alignments;
+*/
 /** TESTING ZONE END */
 
 logs = readFile(LOGS_FILE) || {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
@@ -418,9 +419,8 @@ class MafiaTracker extends Rooms.RoomGame {
 				newRoles.push(Object.assign(Object.create(null), cache[roleId]));
 			} else {
 				const role = MafiaTracker.parseRole(roleName);
-				if (role.problems) {
+				if (role.problems.length) {
 					problems.push(...role.problems);
-					continue;
 				}
 				if (alignments.indexOf(role.role.alignment) === -1) alignments.push(role.role.alignment);
 				cache[roleId] = role.role;
@@ -507,7 +507,9 @@ class MafiaTracker extends Rooms.RoomGame {
 			role.alignment = 'solo';
 			role.memo.push(`Your role has multiple conflicting alignments, ask the host for details.`);
 		} else {
+			const alignment = MafiaData.alignments[role.alignment];
 			role.memo.push(...MafiaData.alignments[role.alignment].memo);
+			if (alignment.image && !role.image) role.image = alignment.image;
 		}
 
 		return {role, problems};
@@ -1254,7 +1256,7 @@ class MafiaTracker extends Rooms.RoomGame {
 				const pick = player.IDEA.picks[this.IDEA.data.picks[0]];
 				if (!pick) throw new Error('Pick not found when parsing role selected in IDEA module.');
 				const parsedRole = MafiaTracker.parseRole(pick);
-				if (parsedRole.problems) {
+				if (parsedRole.problems.length) {
 					this.sendRoom(`Problems found when parsing IDEA role ${player.IDEA.picks[this.IDEA.data.picks[0]]}. Please report this to a mod.`);
 				}
 				player.role = parsedRole.role;
@@ -1273,7 +1275,7 @@ class MafiaTracker extends Rooms.RoomGame {
 					for (const pick of role) {
 						if (pick.substr(0, 10) === 'alignment:') {
 							const parsedRole = MafiaTracker.parseRole(pick.substr(9));
-							if (parsedRole.problems) {
+							if (parsedRole.problems.length) {
 								this.sendRoom(`Problems found when parsing IDEA role ${pick}. Please report this to a mod.`);
 							}
 							player.role.alignment = parsedRole.role.alignment;
@@ -1619,7 +1621,7 @@ export const pages: PageTable = {
 				buf += `<h3>${game.playerTable[user.id].safeName}, you are a ${game.playerTable[user.id].getRole()}</h3>`;
 				if (!['town', 'solo'].includes(role.alignment)) buf += `<p><span style="font-weight:bold">Partners</span>: ${game.getPartners(role.alignment, game.playerTable[user.id])}</p>`;
 				buf += `<p><details><summary class="button" style="text-align:left; display:inline-block">Role Details</summary>`;
-				buf += `<table><tr><td style="text-align:center;">${role.image || `<img width="75" height="75" src="//${Config.routes.client}/fx/mafia-villager.png"/>`}</td><td style="text-align:left;width:100%"><ul>${role.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
+				buf += `<table><tr><td style="text-align:center;"><img width="75" height="75" src="//${Config.routes.client}/fx/mafia-/${role.image || 'villager'}.png"></td><td style="text-align:left;width:100%"><ul>${role.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
 				buf += `</details></p>`;
 			}
 		}
