@@ -121,20 +121,14 @@ function readFile(path: string) {
 }
 function writeFile(path: string, data: AnyObject) {
 	FS(path).writeUpdate(() => (
-		JSON.stringify(data)
+		JSON.stringify(data, null, 2)
 	));
 }
 
 // Load data
 MafiaData = readFile(DATA_FILE) || {alignments: {}, roles: {}, themes: {}, IDEAs: {}, terms: {}, aliases: {}};
-
-/** TESTING ZONE */
-/*
-import md = require('../../server/chat-plugins/mafia-data.js');
-MafiaData.roles = Object.assign(md.modifiers, md.roles);
-MafiaData.alignments = md.alignments;
-*/
-/** TESTING ZONE END */
+if (!MafiaData.alignments.town) MafiaData.alignments.town = {name: 'town', plural: 'town', memo: [`This alignment is required for the script to function properly.`]};
+if (!MafiaData.alignments.solo) MafiaData.alignments.solo = {name: 'solo', plural: 'solo', memo: [`This alignment is required for the script to function properly.`]};
 
 logs = readFile(LOGS_FILE) || {leaderboard: {}, mvps: {}, hosts: {}, plays: {}, leavers: {}};
 
@@ -1621,7 +1615,7 @@ export const pages: PageTable = {
 				buf += `<h3>${game.playerTable[user.id].safeName}, you are a ${game.playerTable[user.id].getRole()}</h3>`;
 				if (!['town', 'solo'].includes(role.alignment)) buf += `<p><span style="font-weight:bold">Partners</span>: ${game.getPartners(role.alignment, game.playerTable[user.id])}</p>`;
 				buf += `<p><details><summary class="button" style="text-align:left; display:inline-block">Role Details</summary>`;
-				buf += `<table><tr><td style="text-align:center;"><img width="75" height="75" src="//${Config.routes.client}/fx/mafia-/${role.image || 'villager'}.png"></td><td style="text-align:left;width:100%"><ul>${role.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
+				buf += `<table><tr><td style="text-align:center;"><img width="75" height="75" src="//${Config.routes.client}/fx/mafia-${role.image || 'villager'}.png"></td><td style="text-align:left;width:100%"><ul>${role.memo.map(m => `<li>${m}</li>`).join('')}</ul></td></tr></table>`;
 				buf += `</details></p>`;
 			}
 		}
@@ -3033,6 +3027,227 @@ export const commands: ChatCommands = {
 			return this.sendReplyBox(buf);
 		},
 
+		overwriterole: 'addrole',
+		addrole(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwriterole';
+
+			const [name, alignment, image, ...memo] = target.split('|').map(e => e.trim());
+			const id = toID(name);
+
+			if (!id || !memo.length) return this.parse(`/help mafia addrole`);
+
+			if (alignment && !(alignment in MafiaData.alignments)) return this.errorReply(`${alignment} is not a valid alignment.`);
+			if (image && !VALID_IMAGES.includes(image)) return this.errorReply(`${image} is not a valid image.`);
+
+			if (!overwrite && id in MafiaData.roles) return this.errorReply(`${name} is already a role. Use /mafia overwriterole to overwrite.`);
+			if (id in MafiaData.alignments) return this.errorReply(`${name} is already an alignment.`);
+			if (id in MafiaData.aliases) return this.errorReply(`${name} is already an alias (pointing to ${MafiaData.aliases[id]}).`);
+
+			const role: MafiaDataRole = {name, memo};
+			if (alignment) role.alignment = alignment;
+			if (image) role.image = image;
+
+			MafiaData.roles[id] = role;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The role ${id} was added to the database.`);
+		},
+		addrolehelp: [`/mafia addrole name|alignment|image|memo1|memo2... - adds a role to the database. Name, memo are required. Requires @ # & ~`],
+
+		overwritealignment: 'addalignment',
+		addalignment(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwritealignment';
+
+			const [name, plural, color, buttonColor, image, ...memo] = target.split('|').map(e => e.trim());
+			const id = toID(name);
+
+			if (!id || !plural || !memo.length) return this.parse(`/help mafia addalignment`);
+
+			if (image && !VALID_IMAGES.includes(image)) return this.errorReply(`${image} is not a valid image.`);
+
+			if (!overwrite && id in MafiaData.alignments) return this.errorReply(`${name} is already an alignment. Use /mafia overwritealignment to overwrite.`);
+			if (id in MafiaData.roles) return this.errorReply(`${name} is already a role.`);
+			if (id in MafiaData.aliases) return this.errorReply(`${name} is already an alias (pointing to ${MafiaData.aliases[id]})`);
+
+			const alignment: MafiaDataAlignment = {name, plural, memo};
+			if (color) alignment.color = color;
+			if (buttonColor) alignment.buttonColor = buttonColor;
+			if (image) alignment.image = image;
+
+			MafiaData.alignments[id] = alignment;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The alignment ${id} was added to the database.`);
+		},
+		addalignmenthelp: [`/mafia addalignment name|plural|color|button color|image|memo1|memo2... - adds a memo to the database. Name, plural, memo are required. Requires @ # & ~`],
+
+		overwritetheme: 'addtheme',
+		addtheme(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwritetheme';
+
+			const [name, desc, ...rolelists] = target.split('|').map(e => e.trim());
+			const id = toID(name);
+
+			if (!id || !desc || !rolelists.length) return this.parse(`/help mafia addtheme`);
+
+			if (!overwrite && id in MafiaData.themes) return this.errorReply(`${name} is already a theme. Use /mafia overwritetheme to overwrite.`);
+			if (id in MafiaData.IDEAs) return this.errorReply(`${name} is already an IDEA.`);
+			if (id in MafiaData.aliases) return this.errorReply(`${name} is already an alias (pointing to ${MafiaData.aliases[id]})`);
+
+			const rolelistsMap: {[players: number]: string} = {};
+			const uniqueRoles = new Set<string>();
+
+			for (const rolelist of rolelists) {
+				const [players, roles] = Chat.splitFirst(rolelist, ':', 2).map(e => e.trim());
+				const playersNum = parseInt(players);
+
+				for (const role of roles.split(',')) {
+					uniqueRoles.add(role.trim());
+				}
+				rolelistsMap[playersNum] = roles;
+			}
+			const problems = [];
+			for (const role of uniqueRoles) {
+				const parsedRole = MafiaTracker.parseRole(role);
+				if (parsedRole.problems.length) problems.push(...parsedRole.problems);
+			}
+			if (problems.length) return this.errorReply(`Problems found when parsing roles:\n${problems.join('\n')}`);
+
+			const theme: MafiaDataTheme = {name, desc, ...rolelistsMap};
+			MafiaData.themes[id] = theme;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The theme ${id} was added to the database.`);
+		},
+		addthemehelp: [`/mafia addtheme name|description|players:rolelist|players:rolelist... - adds a theme to the database. Requires @ # & ~`],
+
+		overwriteidea: 'addidea',
+		addidea(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwriteidea';
+
+			let [meta, ...roles] = target.split('\n');
+			roles = roles.map(e => e.trim());
+			if (!meta || !roles.length) return this.parse(`/help mafia addidea`);
+			const [name, choicesStr, ...picks] = meta.split('|');
+			const id = toID(name);
+			const choices = parseInt(choicesStr);
+
+			if (!id || !choices || !picks.length) return this.parse(`/help mafia addidea`);
+			if (choices <= picks.length) return this.errorReply(`You need to have more choices than picks.`);
+
+			if (!overwrite && id in MafiaData.IDEAs) return this.errorReply(`${name} is already an IDEA. Use /mafia overwriteidea to overwrite.`);
+			if (id in MafiaData.themes) return this.errorReply(`${name} is already a theme.`);
+			if (id in MafiaData.aliases) return this.errorReply(`${name} is already an alias (pointing to ${MafiaData.aliases[id]})`);
+
+			const checkedRoles: string[] = [];
+			const problems = [];
+			for (const role of roles) {
+				if (checkedRoles.includes(role)) continue;
+				const parsedRole = MafiaTracker.parseRole(role);
+				if (parsedRole.problems.length) problems.push(...parsedRole.problems);
+				checkedRoles.push(role);
+			}
+			if (problems.length) return this.errorReply(`Problems found when parsing roles:\n${problems.join('\n')}`);
+
+			const IDEA: MafiaDataIDEA = {name, choices, picks, roles};
+			MafiaData.IDEAs[id] = IDEA;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The IDEA ${id} was added to the database.`);
+		},
+		addideahelp: [
+			`/mafia addidea name|choices (number)|pick1|pick2... (new line here)`,
+			`(newline separated rolelist) - Adds an IDEA to the database. Requires @ # & ~`,
+		],
+
+		overwriteterm: 'addterm',
+		addterm(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwriteterm';
+
+			const [name, ...memo] = target.split('|').map(e => e.trim());
+			const id = toID(name);
+			if (!id || !memo.length) return this.parse(`/help mafia addterm`);
+
+			if (!overwrite && id in MafiaData.terms) return this.errorReply(`${name} is already a term. Use /mafia overwriteterm to overwrite.`);
+			if (id in MafiaData.aliases) return this.errorReply(`${name} is already an alias (pointing to ${MafiaData.aliases[id]})`);
+
+			const term: MafiaDataTerm = {name, memo};
+			MafiaData.terms[id] = term;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The term ${id} was added to the database.`);
+		},
+		addtermhelp: [`/mafia addterm name|memo1|memo2... - Adds a term to the database. Requires @ # & ~`],
+
+		overwritealias: 'addalias',
+		addalias(target, room, user, connection, cmd) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('ban', null, room)) return;
+			const overwrite = cmd === 'overwritealias';
+
+			const [from, to] = target.split(',').map(toID);
+			if (!from || !to) return this.parse(`/help mafia addalias`);
+
+			if (from in MafiaData.aliases) return this.errorReply(`${from} is already an alias (pointing to ${MafiaData.aliases[from]})`);
+			let foundTarget = false;
+			for (const entry of ['alignments', 'roles', 'themes', 'IDEAs', 'terms'] as (keyof MafiaData)[]) {
+				const dataEntry = MafiaData[entry];
+				if (from in dataEntry) return this.errorReply(`${from} is already a ${entry.slice(0, -1)}`);
+				if (to in dataEntry) foundTarget = true;
+			}
+			if (!foundTarget) return this.errorReply(`No database entry exists with the key ${to}.`);
+
+			MafiaData.aliases[from] = to;
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The alias ${from} was added, pointing to ${to}.`);
+		},
+		addaliashelp: [
+			`/mafia addalias from,to - Adds an alias to the database, redirecting (from) to (to). Requires @ # & ~`
+		],
+
+		deletedata(target, room, user) {
+			if (!room || room.roomid !== 'mafia') return this.errorReply(`This command can only be used in the Mafia room.`);
+			if (!this.can('gamemanagement', null, room)) return;
+
+			const [source, entry] = target.split(',').map(e => e.trim());
+			if (!(source in MafiaData)) return this.errorReply(`Invalid source. Valid sources are ${Object.keys(MafiaData).join(', ')}`);
+			// @ts-ignore checked above
+			const dataSource = MafiaData[source];
+			if (!(entry in dataSource)) return this.errorReply(`${entry} does not exist in ${source}.`);
+
+			let buf = '';
+			if (dataSource === MafiaData.alignments) {
+				if (entry === 'solo' || entry === 'town') return this.errorReply(`You cannot delete the solo or town alignments.`);
+
+				for (const key in MafiaData.roles) {
+					if (MafiaData.roles[key].alignment === entry) {
+						buf += `Removed alignment of role ${key}.`;
+						delete MafiaData.roles[key].alignment;
+					}
+				}
+			}
+
+			if (dataSource !== MafiaData.aliases) {
+				// remove any aliases
+				for (const key in MafiaData.aliases) {
+					if (MafiaData.aliases[key] === entry) {
+						buf += `Removed alias ${key}`;
+						delete MafiaData.aliases[key];
+					}
+				}
+			}
+			delete dataSource[entry];
+
+			writeFile(DATA_FILE, MafiaData);
+			this.sendReply(`The entry ${entry} was deleted from the ${source} database.`);
+		},
+		deletedatahelp: [`/mafia deletedata source,entry - Removes an entry from the database. Requires # & ~`],
+
 		disable(target, room, user) {
 			if (!room || !this.can('gamemanagement', null, room)) return;
 			if (room.mafiaDisabled) {
@@ -3182,5 +3397,5 @@ export const roomSettings: SettingsHandler = room => ({
 });
 
 process.nextTick(() => {
-	Chat.multiLinePattern.register('/mafia customidea');
+	Chat.multiLinePattern.register('/mafia (custom|add)idea');
 });
