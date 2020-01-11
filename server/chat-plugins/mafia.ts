@@ -455,10 +455,12 @@ class MafiaTracker extends Rooms.RoomGame {
 	}
 
 	static parseRole(roleString: string) {
+		const roleName = roleString.replace(/solo/, '').trim();
+
 		const role = {
-			name: roleString,
-			safeName: Chat.escapeHTML(roleString),
-			id: toID(roleString),
+			name: roleName,
+			safeName: Chat.escapeHTML(roleName),
+			id: toID(roleName),
 			image: '',
 			memo: ['During the Day, you may vote for whomever you want lynched.'],
 			alignment: '',
