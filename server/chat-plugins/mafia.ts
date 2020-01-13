@@ -1620,7 +1620,7 @@ export const pages: PageTable = {
 			buf += `<details><summary class="button" style="text-align:left; display:inline-block">Role list</summary><p>${game.IDEA.data.roles.join('<br />')}</p></details>`;
 			buf += `</details></p>`;
 		} else {
-			if (!game.closedSetup) {
+			if (!game.closedSetup || isHost) {
 				if (game.theme) {
 					buf += `<p><span style="font-weight:bold;">Theme</span>: ${game.theme.name}</p>`;
 					buf += `<p>${game.theme.desc}</p>`;
