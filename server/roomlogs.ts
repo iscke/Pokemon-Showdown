@@ -221,8 +221,8 @@ export class Roomlog {
 	async rename(newID: RoomID) {
 		const modlogPath = `logs/modlog`;
 		const roomlogPath = `logs/chat`;
-		const modlogStreamExisted = !!this.modlogStream;
-		const roomlogStreamExisted = !!this.roomlogStream;
+		const modlogStreamExisted = this.modlogStream !== null;
+		const roomlogStreamExisted = this.roomlogStream !== null;
 		await this.destroy();
 		await Promise.all([
 			FS(modlogPath + `/modlog_${this.roomid}.txt`).exists(),
@@ -242,9 +242,12 @@ export class Roomlog {
 		this.roomid = newID;
 		Roomlogs.roomlogs.set(newID, this);
 		if (modlogStreamExisted) {
+			// set modlogStream to undefined (uninitialized) instead of null (disabled)
+			this.modlogStream = undefined;
 			this.setupModlogStream();
 		}
 		if (roomlogStreamExisted) {
+			this.roomlogStream = undefined;
 			await this.setupRoomlogStream(true);
 		}
 		return true;
