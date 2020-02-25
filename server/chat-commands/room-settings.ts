@@ -833,7 +833,7 @@ export const commands: ChatCommands = {
 		const toNotify: RoomID[] = ['upperstaff' as RoomID];
 		if (room.isPrivate !== true) toNotify.push('staff' as RoomID);
 		Rooms.global.notifyRooms(toNotify, message);
-		room.add(Chat.html`|raw|<div class="broadcast-green">The room has been renamed to <b>${target}</b></div>`);
+		room.add(Chat.html`|raw|<div class="broadcast-green">The room has been renamed to <b>${target}</b></div>`).update();
 	},
 	renamehelp: [`/rename [new title] - Renames the current room to [new title]. Requires & ~.`],
 
