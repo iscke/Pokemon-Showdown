@@ -218,7 +218,7 @@ export class Roomlog {
 		if (!this.modlogStream) return;
 		this.modlogStream.write('[' + (new Date().toJSON()) + '] ' + message + '\n');
 	}
-	async rename(newID: RoomID) {
+	async rename(newID: RoomID): Promise<true> {
 		const modlogPath = `logs/modlog`;
 		const roomlogPath = `logs/chat`;
 		const modlogStreamExisted = this.modlogStream !== null;
