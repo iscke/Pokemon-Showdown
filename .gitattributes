@@ -1,1 +1,3 @@
 * text=auto
+config/hosts.csv eol=lf
+config/proxies.csv eol=lf
